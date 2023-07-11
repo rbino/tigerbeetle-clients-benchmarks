@@ -17,14 +17,20 @@ pub fn build(b: *std.build.Builder) void {
         ConfigBase,
         "config_base",
         .default,
-    );   
+    );
+
+    options.addOption(
+        std.log.Level,
+        "config_log_level",
+        .info,
+    );
 
     const TracerBackend = enum {
         none,
         perfetto,
         tracy,
     };
-    options.addOption(TracerBackend, "tracer_backend", .none);     
+    options.addOption(TracerBackend, "tracer_backend", .none);
 
     const aof_record_enable = b.option(bool, "config-aof-record", "Enable AOF Recording.") orelse false;
     const aof_recovery_enable = b.option(bool, "config-aof-recovery", "Enable AOF Recovery mode.") orelse false;
@@ -35,11 +41,11 @@ pub fn build(b: *std.build.Builder) void {
         none,
         create,
         check,
-    };   
-    options.addOption(HashLogMode, "hash_log_mode", .none);     
+    };
+    options.addOption(HashLogMode, "hash_log_mode", .none);
 
     const static_lib = b.addStaticLibrary("tb_client", "../tigerbeetle/src/clients/c/tb_client.zig");
-    static_lib.setMainPkgPath("../tigerbeetle/src");    
+    static_lib.setMainPkgPath("../tigerbeetle/src");
     static_lib.linkage = .static;
     static_lib.linkLibC();
     static_lib.setBuildMode(mode);
@@ -47,7 +53,7 @@ pub fn build(b: *std.build.Builder) void {
     static_lib.pie = true;
     static_lib.bundle_compiler_rt = true;
     static_lib.addOptions("vsr_options", options);
-    
+
     const bench = b.addExecutable("bench", "bench.c");
     bench.setBuildMode(mode);
     bench.linkLibrary(static_lib);

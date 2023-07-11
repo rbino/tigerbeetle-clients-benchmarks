@@ -43,6 +43,12 @@ fn add_zig_files(exe: *std.build.LibExeObjStep, comptime files: []const []const 
         .default,
     );
 
+    options.addOption(
+        std.log.Level,
+        "config_log_level",
+        .info,
+    );
+
     const TracerBackend = enum {
         none,
         perfetto,

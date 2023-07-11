@@ -37,11 +37,10 @@ long long get_time_ms(void) {
 
 int main(int argc, char **argv) {
     tb_client_t client;
-    tb_packet_list_t packets;
+    tb_packet_t *packet;
     const char* address = "127.0.0.1:3000";
     TB_STATUS status = tb_client_init(
         &client,             // Output client.
-        &packets,            // Output packet list.
         0,                   // Cluster ID.
         address,             // Cluster addresses.
         strlen(address),     //
@@ -92,16 +91,22 @@ int main(int argc, char **argv) {
                 batch[j].ledger = 1;
                 batch[j].amount = 10;
             }
-            
-            packets.head->operation = TB_OPERATION_CREATE_TRANSFERS;      // The operation to be performed.
-            packets.head->data = &batch;                                  // The data to be sent.
-            packets.head->data_size = BATCH_SIZE * sizeof(tb_transfer_t);
-            packets.head->user_data = &ctx;                               // User-defined context.
-            packets.head->status = TB_PACKET_OK;                          // Will be set when the reply arrives.
+
+            // Acquiring a packet for this request:
+            if (tb_client_acquire_packet(client, &packet) != TB_PACKET_ACQUIRE_OK) {
+                printf("Too many concurrent packets\n");
+                exit(-1);
+            }
+
+            packet->operation = TB_OPERATION_CREATE_TRANSFERS;      // The operation to be performed.
+            packet->data = &batch;                                  // The data to be sent.
+            packet->data_size = BATCH_SIZE * sizeof(tb_transfer_t);
+            packet->user_data = &ctx;                               // User-defined context.
+            packet->status = TB_PACKET_OK;                          // Will be set when the reply arrives.
             
             long long now = get_time_ms();
 
-            tb_client_submit(client, &packets);
+            tb_client_submit(client, packet);
             pthread_cond_wait(&ctx.cv, &ctx.lock);
 
             long elapsed_ms = get_time_ms() - now;
@@ -109,11 +114,14 @@ int main(int argc, char **argv) {
             if (elapsed_ms > max_latency_ms) max_latency_ms = elapsed_ms;
             total_time_ms += elapsed_ms;
             
-            if (packets.head->status != TB_PACKET_OK) {
+            if (packet->status != TB_PACKET_OK) {
                 // Checking if the request failed:
-                printf("Error calling create_transfers (ret=%d)\n", packets.head->status);
+                printf("Error calling create_transfers (ret=%d)\n", packet->status);
                 exit(-1);
             }
+
+            // Releasing the packet, so it can be used in a next request.
+            tb_client_release_packet(client, packet);
 
             // Since we are using invalid IDs,
             // it is expected to all transfers to be rejected.
